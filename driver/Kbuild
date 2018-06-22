@@ -20,4 +20,4 @@ obj-m += $(AXIDMA_MODULE_NAME).o
 
 # Set the CFLAGS for compiling the module, adding the include flags and changing the default warning behavior.
 INC_FLAGS = $(addprefix -I ,$(AXIDMA_INC_DIRS))
-ccflags-y = $(INC_FLAGS) -Werror -ggdb
+ccflags-y = $(INC_FLAGS) -Werror -ggdb -std=gnu11
