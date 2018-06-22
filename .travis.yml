@@ -6,6 +6,7 @@ language:
 branches:
     only:
         - master
+        - v2.0
 
 # Indicate to the Makefiles to always use an ARM cross compiler
 env:
