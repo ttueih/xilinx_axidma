@@ -1,23 +1,23 @@
 #-----------------------------------------------------------------------------------------------------------------------
 #
-# AXI DMA Driver Kernel Build File
+# Xilinx DMA Bridge Driver Kernel Build File
 #
 # Author:			Brandon Perez <bmperez@alumni.cmu.edu>
 # Creation Date:	Tuesday, March 21, 2017 at 07:23:09 PM EST
 #
 # Description:
 #
-#	This is the build file used for compiling the AXI DMA driver against the Linux kernel. This is used by the Linux
-#	kernel to determine which files it should compile to create the driver. Note that the variables referenced in this
-#	file are defined in driver.mk. These variables are exported to the kernel Makefile, which in turn pass them to this
-#	build file.
+#	This is the build file used for compiling the XILINX DMA BRIDGE driver against the Linux kernel. This is used by the
+#	Linux kernel to determine which files it should compile to create the driver. Note that the variables referenced in
+#	this file are defined in driver.mk. These variables are exported to the kernel Makefile, which in turn pass them to
+#	this build file.
 #
 #-----------------------------------------------------------------------------------------------------------------------
 
 # Indicate that this module should be compiled to the kernel Makefile, and the files to use to compile it.
-$(AXIDMA_MODULE_NAME)-objs = $(patsubst %.c,%.o,$(filter %.c,$(AXIDMA_FILES)))
-obj-m += $(AXIDMA_MODULE_NAME).o
+$(DRIVER_MODULE_NAME)-objs = $(patsubst %.c,%.o,$(filter %.c,$(DRIVER_FILES)))
+obj-m += $(DRIVER_MODULE_NAME).o
 
 # Set the CFLAGS for compiling the module, adding the include flags and changing the default warning behavior.
-INC_FLAGS = $(addprefix -I ,$(AXIDMA_INC_DIRS))
+INC_FLAGS = $(addprefix -I ,$(DRIVER_INC_DIRS))
 ccflags-y = $(INC_FLAGS) -Werror -ggdb -std=gnu11
