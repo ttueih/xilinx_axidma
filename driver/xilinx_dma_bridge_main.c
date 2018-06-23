@@ -31,10 +31,10 @@
 /**
  * The name to use for the character device.
  *
- * This defaults to the module's name (xilinx-dma-bridge). This will appear on the Linux filesystem under
- * "/dev/xilinx-dma-bridge", and it acts as the interface to the userspace library.
+ * This defaults to the module's name (xilinx_dma_bridge). This will appear on the Linux filesystem under
+ * "/dev/xilinx_dma_bridge", and it acts as the interface to the userspace library.
  **/
-#define XILINX_DMA_BRIDGE_DRIVER_NAME       "xilinx-dma-bridge"
+#define XILINX_DMA_BRIDGE_DRIVER_NAME       "xilinx_dma_bridge"
 static char *CHARACTER_DEVICE_NAME          = XILINX_DMA_BRIDGE_DRIVER_NAME;
 module_param(CHARACTER_DEVICE_NAME, charp, S_IRUGO);
 
