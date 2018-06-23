@@ -32,5 +32,5 @@ install:
 
 # Build the driver against the kernels to verify that it compiles properly
 script:
-    - make KBUILD_DIR=xilinx_linux
-    - make KBUILD_DIR=xilinx_linux clean
+    - make KBUILD_DIR=xilinx_linux driver
+    - make KBUILD_DIR=xilinx_linux driver_clean
