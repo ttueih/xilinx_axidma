@@ -149,8 +149,7 @@ MODULE_AUTHOR("Brandon Perez <bmperez@alumni.cmu.edu>");
 MODULE_AUTHOR("Jared Choi");
 
 // Define the driver's license and its version number.
-// TODO: Change to MIT license
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual MIT/GPL");
 MODULE_VERSION("2.0");
 
 // Provide a description for the driver and its purpose.
