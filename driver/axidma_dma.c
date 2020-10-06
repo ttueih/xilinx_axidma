@@ -359,7 +359,7 @@ int axidma_read_transfer(struct axidma_device *dev,
     struct axidma_chan *rx_chan;
     struct scatterlist sg_list;
     struct axidma_transfer rx_tfr;
-
+    axidma_info(" axidma_read_transfer.  \n")
     // Get the channel with the given channel id
     rx_chan = axidma_get_chan(dev, trans->channel_id);
     if (rx_chan == NULL || rx_chan->dir != AXIDMA_READ) {
@@ -523,10 +523,10 @@ int axidma_rw_transfer(struct axidma_device *dev,
     }
 
     // Prep both the receive and transmit transfers
-    rc = axidma_prep_transfer(tx_chan, &tx_tfr);
-    if (rc < 0) {
-        return rc;
-    }
+    // rc = axidma_prep_transfer(tx_chan, &tx_tfr);
+    // if (rc < 0) {
+    //     return rc;
+    // }
     rc = axidma_prep_transfer(rx_chan, &rx_tfr);
     if (rc < 0) {
         return rc;
