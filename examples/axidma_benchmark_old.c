@@ -391,10 +391,10 @@ static int single_transfer_test(axidma_dev_t dev, int tx_channel, void *tx_buf,
 
     // Initialize the buffer region we're going to transmit
     init_data(tx_buf, rx_buf, tx_size, rx_size);
+
     // Perform the DMA transaction
     rc = axidma_twoway_transfer(dev, tx_channel, tx_buf, tx_size, tx_frame,
             rx_channel, rx_buf, rx_size, rx_frame, true);
-    //rc = axidma_oneway_transfer(dev, rx_channel, rx_buf, rx_size, rx_frame, true);
     if (rc < 0) {
         return rc;
     }

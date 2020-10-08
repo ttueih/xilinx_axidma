@@ -5,6 +5,9 @@
 # Author: Jared Choi
 #
 # The Makefile for building the AXI DMA driver.
+#
+
+MY_CFLAGS += -g -DDEBUG
 
 # Include guard for the Makefile
 ifndef DRIVER_MAKEFILE_
@@ -72,7 +75,7 @@ driver: $(DRIVER_OUTPUT_OBJECT)
 $(DRIVER_OBJECT): $(DRIVER_PATHS) $(KERNEL_SYMS) | kbuild_def_check \
 			arch_def_check kbuild_exists_check kbuild_built_check \
 			cross_compiler_check
-	make -C $(KBUILD_DIR) M=$(PWD)/$(DRIVER_DIR) modules
+	make -C $(KBUILD_DIR) M=$(PWD)/$(DRIVER_DIR) modules EXTRA_CFLAGS="$(MY_CFLAGS)"
 
 # Copy the compiled driver to the specified output directory
 $(DRIVER_OUTPUT_OBJECT): $(DRIVER_OBJECT) $(OUTPUT_DIR)

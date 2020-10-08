@@ -164,7 +164,7 @@ static void axidma_setup_vdma_config(struct xilinx_vdma_config *dma_config)
 {
     memset(dma_config, 0, sizeof(*dma_config));
     dma_config->frm_dly = 0;            // Number of frames to delay
-    dma_config->gen_lock = 0;           // Genlock, VDMA runs on fsyncs
+    dma_config->gen_lock = 1;           // Genlock, VDMA runs on fsyncs
     dma_config->master = 0;             // VDMA is the genlock master
     dma_config->frm_cnt_en = 1;         // Interrupt based on frame count
     dma_config->park = 0;               // Continuously process all frames
@@ -176,6 +176,23 @@ static void axidma_setup_vdma_config(struct xilinx_vdma_config *dma_config)
     return;
 }
 
+// Setup the config structure for VDMA
+/* static void axidma_setup_vdma_config_v1(struct xilinx_vdma_config *dma_config) */
+/* { */
+/*   memset(dma_config, 0, sizeof(*dma_config)); */
+/*   dma_config->frm_dly = 0;            // Number of frames to delay */
+/*   dma_config->gen_lock = 0;           // Genlock, VDMA runs on fsyncs */
+/*   dma_config->master = 0;             // VDMA is the genlock master */
+/*   dma_config->frm_cnt_en = 1;         // Interrupt based on frame count */
+/*   dma_config->park = 0;               // Continuously process all frames */
+/*   dma_config->park_frm = 0;           // Frame to stop (park) at (N/A) */
+/*   dma_config->coalesc = 1;            // Interrupt after one frame completion */
+/*   dma_config->delay = 0;              // Disable the delay counter interrupt */
+/*   dma_config->reset = 0;              // Don't reset the channel */
+/*   dma_config->ext_fsync = 0;          // VDMA handles synchronizes itself */
+/*   return; */
+/* } */
+
 static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
                                 struct axidma_transfer *dma_tfr)
 {
@@ -185,7 +202,7 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
     struct completion *dma_comp;
     struct xilinx_vdma_config vdma_config;
     struct axidma_cb_data *cb_data;
-    struct dma_interleaved_template dma_template;
+    struct dma_interleaved_template* dma_template;
     enum dma_transfer_direction dma_dir;
     enum dma_ctrl_flags dma_flags;
     struct scatterlist *sg_list;
@@ -193,7 +210,6 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
     dma_cookie_t dma_cookie;
     char *direction, *type;
     int rc;
-
     // Get the fields from the structures
     chan = axidma_chan->chan;
     dma_comp = &dma_tfr->comp;
@@ -205,6 +221,9 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
     type = axidma_type_to_string(dma_tfr->type);
     cb_data = dma_tfr->cb_data;
 
+    dma_template = kmalloc(sizeof(struct dma_interleaved_template), GFP_KERNEL);
+
+    /* axidma_info(" prep_trans.  \n"); */
     /* For VDMA transfers, we configure the channel, then prepare an interlaved
      * transfer. For DMA, we simply prepare a slave scatter-gather transfer. */
     dma_flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
@@ -212,6 +231,7 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
         dma_txnd = dmaengine_prep_slave_sg(chan, sg_list, sg_len, dma_dir,
                                            dma_flags);
     } else {
+      axidma_info(" Prep - VDMA \n");
         axidma_setup_vdma_config(&vdma_config);
         rc = xilinx_vdma_channel_set_config(chan, &vdma_config);
         if (rc < 0) {
@@ -219,17 +239,41 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
             goto stop_dma;
         }
 
-        memset(&dma_template, 0, sizeof(dma_template));
-        dma_template.dst_start = sg_dma_address(&sg_list[0]);
-        dma_template.src_start = sg_dma_address(&sg_list[0]);
-        dma_template.dir = dma_dir;
-        dma_template.numf = dma_tfr->frame.height;
-        dma_template.frame_size = 1;
-        dma_template.sgl[0].size = dma_tfr->frame.width *
-                dma_tfr->frame.depth;
-        dma_template.sgl[0].icg = 0;
-        dma_txnd = dmaengine_prep_interleaved_dma(chan, &dma_template,
+        memset(dma_template, 0, sizeof(struct dma_interleaved_template));
+        dma_template->dst_start = sg_dma_address(&sg_list[0]);
+        dma_template->src_start = sg_dma_address(&sg_list[0]);
+        dma_template->dir = dma_dir;
+        dma_template->numf = dma_tfr->frame.height;
+        dma_template->frame_size = 1;
+        dma_template->sgl[0].size = dma_tfr->frame.width *dma_tfr->frame.depth;
+        dma_template->sgl[0].icg = 0;
+
+        /* dma_template->dir = dma_dir; /\*DMA_DEV_TO_MEM;  DMA_MEM_TO_DEV *\/ */
+        /* dma_template->src_sgl = false; */
+        /* dma_template->dst_sgl = false; */
+        /* dma_template->dst_start = sg_dma_address(&sg_list[0]); */
+        /* dma_template->src_start = sg_dma_address(&sg_list[0]); */
+        /* dma_template->numf = dma_tfr->frame.height; */
+        /* dma_template->frame_size = 1; /\* single plane pixel format *\/ */
+        /* dma_template->sgl[0].size = dma_tfr->frame.width *dma_tfr->frame.depth; /\* 3 bytes/pixel x 1920 pixels *\/ */
+        /* dma_template->sgl[0].icg = 0; */
+
+        /* axidma_info(" vdma before interleaved_dma.\n"); */
+        /* axidma_info(" dir %d  - %d \n", dma_dir, DMA_DEV_TO_MEM); */
+        /* axidma_info(" frame height %d  \n", dma_tfr->frame.height); */
+        /* axidma_info(" frame size %d  \n", dma_tfr->frame.width); */
+        /* axidma_info(" ds addr 0x%x\n", sg_dma_address(&sg_list[0])); */
+        /* axidma_info(" addr of template 0x%px\n", (void*)dma_template); */
+        /* axidma_info(" size of template 0x%x\n", sizeof(struct dma_interleaved_template)); */
+        /* axidma_info(" dir %d  \n", dma_template->dir); */
+        /* axidma_info(" src_start %x  \n", dma_template->src_start); */
+        /* axidma_info(" dst_start %x  \n", dma_template->dst_start); */
+
+        dma_txnd = dmaengine_prep_interleaved_dma(chan, dma_template,
                 dma_flags);
+
+        /* axidma_info(" vdma after interleaved_dma.  \n"); */
+        /* return -1; */
     }
     if (dma_txnd == NULL) {
         axidma_err("Unable to prepare the dma engine for the %s %s buffer.\n",
@@ -263,11 +307,14 @@ static int axidma_prep_transfer(struct axidma_chan *axidma_chan,
         goto stop_dma;
     }
 
+    /* axidma_info(" return from prep \n"); */
     // Return the DMA cookie for the transaction
     dma_tfr->cookie = dma_cookie;
+    kfree(dma_template);
     return 0;
 
 stop_dma:
+    kfree(dma_template);
     dmaengine_terminate_all(chan);
     return rc;
 }
@@ -352,6 +399,70 @@ int axidma_set_signal(struct axidma_device *dev, int signal)
     return 0;
 }
 
+
+int axidma_read_image(struct axidma_device *dev,
+                      struct axidma_transaction *trans)
+{
+    int rc;
+    struct axidma_chan *rx_chan;
+    struct scatterlist sg_list;
+    struct axidma_transfer rx_tfr;
+    axidma_info(" axidma_read_image.  \n");
+    // Get the channel with the given channel id
+    rx_chan = axidma_get_chan(dev, trans->channel_id);
+    if (rx_chan == NULL || rx_chan->dir != AXIDMA_READ) {
+        axidma_err("Invalid device id %d for DMA receive channel.\n",
+                   trans->channel_id);
+        return -ENODEV;
+    }
+
+    // Setup the scatter-gather list for the transfer (only one entry)
+    sg_init_table(&sg_list, 1);
+    rc = axidma_init_sg_entry(dev, &sg_list, 0, trans->buf,
+                              trans->buf_len);
+    if (rc < 0) {
+        return rc;
+    }
+    axidma_info(" ... after sg_entry \n");
+
+    // Setup receive transfer structure for VDMA
+    rx_tfr.sg_list = &sg_list;
+    rx_tfr.sg_len = 1;
+    rx_tfr.dir = rx_chan->dir;
+    rx_tfr.type = rx_chan->type;
+    rx_tfr.wait = trans->wait;
+    rx_tfr.channel_id = trans->channel_id;
+    rx_tfr.notify_signal = dev->notify_signal;
+    rx_tfr.process = get_current();
+    rx_tfr.cb_data = &dev->cb_data[trans->channel_id];
+
+    axidma_info(" ... before mem copy \n");
+
+    // Add in the frame information for VDMA transfers
+    if (rx_chan->type == AXIDMA_VDMA) {
+      memcpy(&rx_tfr.frame, &trans->frame, sizeof(rx_tfr.frame));
+    }
+    axidma_info(" ... after mem copy %dx%dx%d \n",
+                rx_tfr.frame.height,
+                rx_tfr.frame.width,
+                rx_tfr.frame.depth);
+
+    // Prepare the receive transfer
+    rc = axidma_prep_transfer(rx_chan, &rx_tfr);
+    if (rc < 0) {
+        return rc;
+    }
+    axidma_info(" ... after prep transfer \n");
+
+    // Submit the receive transfer, and wait for it to complete
+    rc = axidma_start_transfer(rx_chan, &rx_tfr);
+    if (rc < 0) {
+        return rc;
+    }
+    axidma_info(" ... after start transfer \n");
+    return 0;
+}
+
 int axidma_read_transfer(struct axidma_device *dev,
                          struct axidma_transaction *trans)
 {
@@ -359,7 +470,7 @@ int axidma_read_transfer(struct axidma_device *dev,
     struct axidma_chan *rx_chan;
     struct scatterlist sg_list;
     struct axidma_transfer rx_tfr;
-    axidma_info(" axidma_read_transfer.  \n")
+    axidma_info(" axidma_read_transfer.  \n");
     // Get the channel with the given channel id
     rx_chan = axidma_get_chan(dev, trans->channel_id);
     if (rx_chan == NULL || rx_chan->dir != AXIDMA_READ) {
@@ -523,15 +634,14 @@ int axidma_rw_transfer(struct axidma_device *dev,
     }
 
     // Prep both the receive and transmit transfers
-    // rc = axidma_prep_transfer(tx_chan, &tx_tfr);
-    // if (rc < 0) {
-    //     return rc;
-    // }
-    rc = axidma_prep_transfer(rx_chan, &rx_tfr);
+    rc = axidma_prep_transfer(tx_chan, &tx_tfr);
     if (rc < 0) {
         return rc;
     }
-
+    rc = axidma_prep_transfer(rx_chan, &rx_tfr);
+    if (rc < 0) {
+       return rc;
+    }
     // Submit both transfers to the DMA engine, and wait on the receive transfer
     rc = axidma_start_transfer(tx_chan, &tx_tfr);
     if (rc < 0) {
@@ -559,7 +669,7 @@ int axidma_video_transfer(struct axidma_device *dev,
         .sg_len = trans->num_frame_buffers,
         .dir = dir,
         .type = AXIDMA_VDMA,
-        .wait = false,
+        .wait = true,
         .channel_id = trans->channel_id,
         .notify_signal = dev->notify_signal,
         .process = get_current(),

@@ -101,6 +101,8 @@ void axidma_get_channel_info(struct axidma_device *dev,
 int axidma_set_signal(struct axidma_device *dev, int signal);
 int axidma_read_transfer(struct axidma_device *dev,
                           struct axidma_transaction *trans);
+int axidma_read_image(struct axidma_device *dev,
+                         struct axidma_transaction *trans);
 int axidma_write_transfer(struct axidma_device *dev,
                           struct axidma_transaction *trans);
 int axidma_rw_transfer(struct axidma_device *dev,

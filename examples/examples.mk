@@ -17,7 +17,7 @@ include library/library.mk
 
 # The list of example programs
 EXAMPLES_DIR = examples
-EXAMPLES_FILES = axidma_benchmark.c axidma_display_image.c axidma_transfer.c
+EXAMPLES_FILES = axidma_benchmark.c axidma_display_image.c axidma_transfer.c  vdma_capture.c
 
 # The variations of specific targets for the example programs
 EXAMPLES_TARGETS = $(EXAMPLES_FILES:%.c=%)
@@ -37,7 +37,7 @@ EXAMPLES_CFLAGS = $(GLOBAL_CFLAGS)
 # the outputs directory
 EXAMPLES_LINKER_FLAGS = -Wl,-rpath,'$$ORIGIN'
 EXAMPLES_LIB_FLAGS = -L $(OUTPUT_DIR) -l $(LIBAXIDMA_NAME) \
-					 $(EXAMPLES_LINKER_FLAGS)
+					 $(EXAMPLES_LINKER_FLAGS) -lpng
 
 ################################################################################
 # Targets

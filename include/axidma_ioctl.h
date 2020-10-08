@@ -377,4 +377,28 @@ struct axidma_video_transaction {
  **/
 #define AXIDMA_UNREGISTER_BUFFER        _IO(AXIDMA_IOCTL_MAGIC, 10)
 
+
+/**
+ * TODO
+ * Receives the data from the logic fabric into the processing system.
+ *
+ * This function receives data from a device on the PL fabric through
+ * AXI DMA into memory. The device id should be an id that is returned by the
+ * get dma channels ioctl. The user can specify if the call should wait for the
+ * transfer to complete, or if it should return immediately.
+ *
+ * The specified buffer must be within an address range that was allocated by a
+ * call to mmap with the AXI DMA device. Also, the buffer must be able to hold
+ * at least `buf_len` bytes.
+ *
+ * Inputs:
+ *  - wait - Indicates if the call should be blocking or non-blocking
+ *  - channel_id - The id for the channel you want receive data over.
+ *  - buf - The address of the buffer you want to receive the data in.
+ *  - buf_len - The number of bytes to receive.
+ **/
+#define AXIDMA_VDMA_READ                 _IOR(AXIDMA_IOCTL_MAGIC, 1,     \
+                                             struct axidma_transaction)
+
+
 #endif /* AXIDMA_IOCTL_H_ */

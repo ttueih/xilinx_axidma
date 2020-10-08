@@ -277,6 +277,47 @@ int axidma_twoway_transfer(axidma_dev_t dev, int tx_channel, void *tx_buf,
 int axidma_video_transfer(axidma_dev_t dev, int display_channel, size_t width,
         size_t height, size_t depth, void **frame_buffers, int num_buffers);
 
+
+
+/**
+ * TODO Starts a video DMA (VDMA) loop/continuous transfer on the given channel.
+ *
+ * A video loop transfer differs from a typical DMA transfer in that it is
+ * cyclic, and ends only when requested by the user. A video loop transfer will
+ * continuously transmit/receive the frame buffers, transmitting the first
+ * buffer, then the second, etc., and then repeating from the beginning once the
+ * last buffer is reached. This is suitable when continuously sending data to a
+ * display, or continuous receiving data from a camera.
+ *
+ * This function supports an arbitrary number of frame buffers, allowing
+ * for both double-buffering and triple-buffering. This function is
+ * non-blocking, and returns immediately. The only way to stop the transfer is
+ * via a call to #axidma_stop_transfer.
+ *
+ * @param[in] dev An #axidma_dev_t returned by #axidma_init.
+ * @param[in] display_channel DMA channel the video transfer will take place
+ *                            on. This must be a VDMA channel.
+ * @param[in] width The number of pixels in a row of the frame buffer.
+ * @param[in] height The number rows in the frame buffer.
+ * @param[in] depth The number of bytes in a pixel.
+ * @param[in] frame_buffers A list of frame buffer addresses.
+ * @param[in] num_buffers The number of buffers in \p frame_buffers. This must
+ *                        match the length of the list.
+ * @return 0 upon success, a negative number on failure.
+ **/
+int axidma_video_receiver(axidma_dev_t dev, int display_channel, size_t width,
+                          size_t height, size_t depth, void **frame_buffers, int num_buffers);
+
+
+/**
+   TODO
+**/
+int axidma_image_capture(axidma_dev_t dev, int rx_channel,
+                         void *rx_buf, int rx_len,
+                         struct axidma_video_frame *rx_frame,
+                         bool wait);
+
+
 /**
  * Stops the DMA transfer on specified DMA channel.
  *

@@ -43,6 +43,7 @@
 #include "libaxidma.h"          // Interface to the AXI DMA
 #include "util.h"               // Miscellaneous utilities
 #include "conversion.h"         // Miscellaneous conversion utilities
+#include <png.h>
 
 /*----------------------------------------------------------------------------
  * Internal Definitons
@@ -64,6 +65,137 @@
  * Command-line Interface
  *----------------------------------------------------------------------------*/
 
+int writePNGGray(char* filename, char* title, int width, int height, char *buffer)
+{
+	int code = 0;
+	FILE *fp = NULL;
+	png_structp png_ptr = NULL;
+	png_infop info_ptr = NULL;
+	png_bytep row = NULL;
+
+	// Open file for writing (binary mode)
+	fp = fopen(filename, "wb");
+	if (fp == NULL) {
+		fprintf(stderr, "Could not open file %s for writing\n", filename);
+		code = 1;
+		goto finalise;
+	}
+
+	// Initialize write structure
+	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (png_ptr == NULL) {
+		fprintf(stderr, "Could not allocate write struct\n");
+		code = 1;
+		goto finalise;
+	}
+
+	// Initialize info structure
+	info_ptr = png_create_info_struct(png_ptr);
+	if (info_ptr == NULL) {
+		fprintf(stderr, "Could not allocate info struct\n");
+		code = 1;
+		goto finalise;
+	}
+
+	// Setup Exception handling
+	if (setjmp(png_jmpbuf(png_ptr))) {
+		fprintf(stderr, "Error during png creation\n");
+		code = 1;
+		goto finalise;
+	}
+
+	png_init_io(png_ptr, fp);
+
+	// Write header (8 bit colour depth)
+	png_set_IHDR(png_ptr, info_ptr, width, height,
+               8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
+	// Set title
+	if (title != NULL) {
+		png_text title_text;
+		title_text.compression = PNG_TEXT_COMPRESSION_NONE;
+		title_text.key = "Title";
+		title_text.text = title;
+		png_set_text(png_ptr, info_ptr, &title_text, 1);
+	}
+
+	png_write_info(png_ptr, info_ptr);
+
+	// Allocate memory for one row (3 bytes per pixel - RGB)
+	row = (png_bytep) malloc(3 * width * sizeof(png_byte));
+
+	// Write image data
+	int x, y;
+  int tt;
+	for (y=0 ; y<height ; y++) {
+		for (x=0 ; x<width ; x++) {
+			//setRGB(&(row[x*3]), buffer[y*width + x]);
+      /* tt = x/20; */
+      /* if (tt%2 == 0){ */
+      row[x]=buffer[y*width + x];
+      /* }else */
+        /* row[x]=0; */
+		}
+		png_write_row(png_ptr, row);
+	}
+
+	// End write
+	png_write_end(png_ptr, NULL);
+
+	finalise:
+	if (fp != NULL) fclose(fp);
+	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
+	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+	if (row != NULL) free(row);
+
+	return code;
+}
+
+void pgma_write(char *file_name, char *comment, int xsize, int ysize,
+                int maxval, char *gray) {
+  FILE *file_handle;
+  int i;
+  char *indexg;
+  int j;
+  /*
+    Open the output file.
+  */
+  file_handle = fopen ( file_name, "wt" );
+
+  if ( ! file_handle ){
+    fprintf ( stderr, "\n" );
+    fprintf ( stderr, "PGMA_WRITE - Fatal error!\n" );
+    fprintf ( stderr, "  Cannot open the output file \"%s\".\n", file_name );
+    exit ( 1 );
+  }
+  /*
+    Write the header.
+  */
+  fprintf ( file_handle, "P2\n" );
+  fprintf ( file_handle, "#%s\n", comment );
+  fprintf ( file_handle, "%d %d\n", xsize, ysize );
+  fprintf ( file_handle, "%d\n", maxval );
+  /*
+    Write the data.
+  */
+  indexg = gray;
+
+  for ( j = 0; j < ysize; j++ ){
+    for ( i = 0; i < xsize; i++ ){
+      fprintf ( file_handle, " %d", *indexg );
+      indexg = indexg + 1;
+    }
+    fprintf ( file_handle, "\n" );
+  }
+  /*
+    Close the file.
+  */
+  fclose ( file_handle );
+
+  return;
+}
+
 // Prints the usage for this program
 static void print_usage(bool help)
 {
@@ -80,31 +212,31 @@ static void print_usage(bool help)
     }
 
     default_size = BYTE_TO_MIB(DEFAULT_TRANSFER_SIZE);
-    fprintf(stream, "\t-v:\t\t\t\tUse the AXI VDMA channels instead of AXI DMA "
+    fprintf(stream, "-v: Use the AXI VDMA channels instead of AXI DMA "
             "ones for the transfer.\n");
-    fprintf(stream, "\t-t <DMA tx channel>:\t\t\tThe device id of the DMA "
+    fprintf(stream, "<DMA tx channel>: The device id of the DMA "
             "channel to use for transmitting the data to the PL fabric.\n");
-    fprintf(stream, "\t-r <DMA rx channel>:\t\t\tThe device id of the DMA "
+    fprintf(stream, "-r <DMA rx channel>: The device id of the DMA "
             "channel to use for receiving the the data from the PL fabric.\n");
-    fprintf(stream, "\t-i <transmit transfer size (MiB)>:\tThe size of the "
+    fprintf(stream, "-i <transmit transfer size (MiB)>: The size of the "
             "data transmit over the DMA on each transfer. Default is %0.2f "
             "MiB.\n", default_size);
-    fprintf(stream, "\t-b <Tx transfer size (bytes)>:\tThe size of the "
+    fprintf(stream, "-b <Tx transfer size (bytes)>: The size of the "
             "data transmit over the DMA on each transfer. Default is %d "
             "bytes.\n", DEFAULT_TRANSFER_SIZE);
-    fprintf(stream, "\t-f <Tx frame size (height x width x depth)>:\tThe size "
+    fprintf(stream, "-f <Tx frame size (height x width x depth)>: The size "
             "of the frame to transmit over VDMA on each transfer, where the "
             "depth is in bytes.");
-    fprintf(stream, "\t-o <Rx transfer size (MiB)>:\tThe size of the data "
+    fprintf(stream, "-o <Rx transfer size (MiB)>: The size of the data "
             "to receive from the DMA on each transfer. Default is %0.2f MiB.\n",
             default_size);
-    fprintf(stream, "\t-s <Rx transfer size (bytes)>:\tThe size of the "
+    fprintf(stream, "-s <Rx transfer size (bytes)>: The size of the "
             "data to receive from the DMA on each transfer. Default is %d "
             "bytes.\n", DEFAULT_TRANSFER_SIZE);
-    fprintf(stream, "\t-g <Rx frame size (height x width x depth)>:\tThe size "
+    fprintf(stream, "-g <Rx frame size (height x width x depth)>: The size "
             "of the frame to receive over VDMA on each transfer, where the "
             "depth is in bytes.");
-    fprintf(stream, "\t-n <number transfers>:\t\t\tThe number of DMA transfers "
+    fprintf(stream, "-n <number transfers>: The number of DMA transfers "
             "to perform to do the benchmark. Default is %d transfers.\n",
             DEFAULT_NUM_TRANSFERS);
     return;
@@ -384,23 +516,86 @@ static int verify_data(char *tx_buf, char *rx_buf, size_t tx_buf_size,
 }
 
 static int single_transfer_test(axidma_dev_t dev, int tx_channel, void *tx_buf,
-        int tx_size, struct axidma_video_frame *tx_frame, int rx_channel,
-        void *rx_buf, int rx_size, struct axidma_video_frame *rx_frame)
+                                int tx_size, struct axidma_video_frame *tx_frame, int rx_channel,
+                                void *rx_buf, int rx_size, struct axidma_video_frame *rx_frame)
+{
+  int rc;
+
+  // Initialize the buffer region we're going to transmit
+  init_data(tx_buf, rx_buf, tx_size, rx_size);
+  // Perform the DMA transaction
+  rc = axidma_twoway_transfer(dev, tx_channel, tx_buf, tx_size, tx_frame,
+                              rx_channel, rx_buf, rx_size, rx_frame, true);
+  //rc = axidma_oneway_transfer(dev, rx_channel, rx_buf, rx_size, rx_frame, true);
+  if (rc < 0) {
+    return rc;
+  }
+
+  // Verify that the data in the buffer changed
+  return verify_data(tx_buf, rx_buf, tx_size, rx_size);
+}
+
+static int my_receiving_test(axidma_dev_t dev, int rx_channel,
+                             void **frm_buf, int rx_size, struct axidma_video_frame *rx_frame,
+                             int num_frm)
 {
     int rc;
 
+
+
     // Initialize the buffer region we're going to transmit
-    init_data(tx_buf, rx_buf, tx_size, rx_size);
+    /* init_data(tx_buf, rx_buf, tx_size, rx_size); */
     // Perform the DMA transaction
-    rc = axidma_twoway_transfer(dev, tx_channel, tx_buf, tx_size, tx_frame,
-            rx_channel, rx_buf, rx_size, rx_frame, true);
+
+    printf(" size of rx_buf, %d \n", sizeof(*frm_buf[0]));
+
+    rc = axidma_video_receiver(dev, rx_channel, rx_frame->width,
+                                  rx_frame->height, rx_frame->depth,
+                                  frm_buf, num_frm);
+
+    /* rc = axidma_twoway_transfer(dev, tx_channel, tx_buf, tx_size, tx_frame, */
+    /*         rx_channel, rx_buf, rx_size, rx_frame, true); */
     //rc = axidma_oneway_transfer(dev, rx_channel, rx_buf, rx_size, rx_frame, true);
     if (rc < 0) {
         return rc;
     }
 
     // Verify that the data in the buffer changed
-    return verify_data(tx_buf, rx_buf, tx_size, rx_size);
+    /* return verify_data(tx_buf, rx_buf, tx_size, rx_size); */
+}
+
+
+static int image_receiving_test(axidma_dev_t dev, int rx_channel,
+                                void* rx_buf, int rx_size,
+                                struct axidma_video_frame *rx_frame)
+{
+    int rc;
+
+
+
+    // Initialize the buffer region we're going to transmit
+    /* init_data(tx_buf, rx_buf, tx_size, rx_size); */
+    // Perform the DMA transaction
+
+    /* printf(" size of rx_buf, %d \n", sizeof(*frm_buf[0])); */
+
+    /* rc = axidma_video_receiver(dev, rx_channel, rx_frame->width, */
+    /*                               rx_frame->height, rx_frame->depth, */
+    /*                               frm_buf, num_frm); */
+    rc =  axidma_image_capture(dev, rx_channel,
+                             rx_buf, rx_size,
+                             rx_frame,
+                               true);
+
+    /* rc = axidma_twoway_transfer(dev, tx_channel, tx_buf, tx_size, tx_frame, */
+    /*         rx_channel, rx_buf, rx_size, rx_frame, true); */
+    //rc = axidma_oneway_transfer(dev, rx_channel, rx_buf, rx_size, rx_frame, true);
+    if (rc < 0) {
+        return rc;
+    }
+
+    // Verify that the data in the buffer changed
+    /* return verify_data(tx_buf, rx_buf, tx_size, rx_size); */
 }
 
 /*----------------------------------------------------------------------------
@@ -460,8 +655,10 @@ int main(int argc, char **argv)
     int num_transfers;
     int tx_channel, rx_channel;
     size_t tx_size, rx_size;
+    size_t buf_size;
     bool use_vdma;
     char *tx_buf, *rx_buf;
+    void** frm_buf;
     axidma_dev_t axidma_dev;
     const array_t *tx_chans, *rx_chans;
     struct axidma_video_frame transmit_frame, *tx_frame, receive_frame, *rx_frame;
@@ -473,19 +670,13 @@ int main(int argc, char **argv)
         rc = 1;
         goto ret;
     }
-    printf("AXI DMA Benchmark Parameters:\n");
-    if (!use_vdma) {
-        printf("\tTransmit Buffer Size: %0.2f MiB\n", BYTE_TO_MIB(tx_size));
-        printf("\tReceive Buffer Size: %0.2f MiB\n", BYTE_TO_MIB(rx_size));
-    } else {
-        printf("\tTransmit Buffer Size: %dx%dx%d (%0.2f MiB)\n",
-                transmit_frame.height, transmit_frame.width, transmit_frame.depth,
-                BYTE_TO_MIB(tx_size));
-        printf("\tReceive Buffer Size: %dx%dx%d (%0.2f MiB)\n",
-                receive_frame.height, receive_frame.width, receive_frame.depth,
-                BYTE_TO_MIB(rx_size));
-    }
-    printf("\tNumber of DMA Transfers: %d transfers\n\n", num_transfers);
+    buf_size =  rx_size*num_transfers;
+    printf(" VDMA Capture Paramters:\n");
+    printf(" ... Receive frame size: %d x %d x %d \n", receive_frame.height,
+           receive_frame.width,
+           receive_frame.depth);
+    printf(" ... rx_size: %0.2f MB, buf_size \n", BYTE_TO_MIB(rx_size), BYTE_TO_MIB(buf_size));
+    printf(" ... Num frames: %d \n", num_transfers);
 
     // Initialize the AXI DMA device
     axidma_dev = axidma_init();
@@ -495,37 +686,34 @@ int main(int argc, char **argv)
         goto ret;
     }
 
-    // Map memory regions for the transmit and receive buffers
-    tx_buf = axidma_malloc(axidma_dev, tx_size);
-    if (tx_buf == NULL) {
-        perror("Unable to allocate transmit buffer from the AXI DMA device.");
-        rc = -1;
-        goto destroy_axidma;
+    // Map memory regions for the receive buffer
+    frm_buf = (void**) malloc(sizeof(void*)*num_transfers);
+    rx_buf = axidma_malloc(axidma_dev, buf_size);
+    for (int i=0; i<num_transfers; i++){
+      frm_buf[i] = rx_buf + i*rx_size;
     }
-    rx_buf = axidma_malloc(axidma_dev, rx_size);
+    printf(" After allocate memory size fo rx_buf %d, %px \n", sizeof(rx_buf), rx_buf);
+    void ** bbuf;
+    bbuf =(void**) &rx_buf;
+    printf(" size of bbuf %d, %px, %px \n", sizeof(bbuf), bbuf, bbuf[0]);
     if (rx_buf == NULL) {
         perror("Unable to allocate receive buffer from the AXI DMA device");
         rc = -1;
-        goto free_tx_buf;
+        goto destroy_axidma;
     }
 
-    // Get all the transmit and receive channels
-    if (use_vdma) {
-        tx_chans = axidma_get_vdma_tx(axidma_dev);
-        rx_chans = axidma_get_vdma_rx(axidma_dev);
-        tx_frame = &transmit_frame;
-        rx_frame = &receive_frame;
-    } else {
-        tx_chans = axidma_get_dma_tx(axidma_dev);
-        rx_chans = axidma_get_dma_rx(axidma_dev);
-        tx_frame = NULL;
-        rx_frame = NULL;
-    }
-    if (tx_chans->len < 1) {
-        fprintf(stderr, "Error: No transmit channels were found.\n");
-        rc = -ENODEV;
-        goto free_rx_buf;
-    }
+    // get receive channel
+    /* tx_chans = axidma_get_vdma_tx(axidma_dev); */
+    rx_chans = axidma_get_vdma_rx(axidma_dev);
+    /* tx_frame = &transmit_frame; */
+    rx_frame = &receive_frame;
+
+
+    /* if (tx_chans->len < 1) { */
+    /*     fprintf(stderr, "Error: No transmit channels were found.\n"); */
+    /*     rc = -ENODEV; */
+    /*     goto free_rx_buf; */
+    /* } */
     if (rx_chans->len < 1) {
         fprintf(stderr, "Error: No receive channels were found.\n");
         rc = -ENODEV;
@@ -534,30 +722,97 @@ int main(int argc, char **argv)
 
     /* If the user didn't specify the channels, we assume that the transmit and
      * receive channels are the lowest numbered ones. */
-    if (tx_channel == -1 && rx_channel == -1) {
-        tx_channel = tx_chans->data[0];
+    if (rx_channel == -1) {
+        /* tx_channel = tx_chans->data[0]; */
         rx_channel = rx_chans->data[0];
     }
-    printf("Using transmit channel %d and receive channel %d.\n", tx_channel,
+    printf("Using receive channel %d.\n",
            rx_channel);
 
     // Transmit the buffer to DMA a single time
-    rc = single_transfer_test(axidma_dev, tx_channel, tx_buf, tx_size,
-            tx_frame, rx_channel, rx_buf, rx_size, rx_frame);
+
+    /* rc = single_transfer_test(axidma_dev, tx_channel, tx_buf, tx_size, */
+    /*         tx_frame, rx_channel, rx_buf, rx_size, rx_frame); */
+
+    // Map two frame buffers to display the image
+    /* my_buf = mmap(NULL, rx_size, PROT_READ|PROT_WRITE, */
+                  /* MAP_SHARED, axidma_dev->fd, 0); */
+    /* my_buf =      axidma_malloc(axidma_dev, rx_size); */
+    /* printf(" rx-size %d, size of my_buf %d, mybuf addr %px \n", rx_size, sizeof(my_buf), my_buf ); */
+    /* printf(" Before: rx %d %d, my_buf %d %d \n", rx_buf[0], rx_buf[1], my_buf[0], my_buf[1]); */
+    /* rx_buf[0] = 10; */
+    /* rx_buf[1] = 20; */
+    /* printf(" Afteri: rx %d %d, my_buf %d %d \n", rx_buf[0], rx_buf[1], my_buf[0], my_buf[1]); */
+    /* if (image_buf == MAP_FAILED) { */
+    /*   perror("Unable to mmap memory region from AXI DMA device"); */
+    /*   rc = 1; */
+    /*   /\* goto close_axidma; *\/ */
+    /* } */
+
+    printf("\n");
+    for(int i=0; i< 30; i++){
+      printf("%d ",rx_buf[i]);
+      rx_buf[i]=33;
+    }
+    struct timeval start_time, end_time;
+    double elapsed_time, tx_data_rate, rx_data_rate;
+    num_transfers = 1;
+    // Begin timing
+    gettimeofday(&start_time, NULL);
+
+    for(int j = 0; j<num_transfers; j++){
+    /* rc = my_receiving_test(axidma_dev,rx_channel, frm_buf, rx_size, rx_frame, num_transfers); */
+    rc = image_receiving_test(axidma_dev, rx_channel, rx_buf, rx_size, rx_frame);
+    if (j%10 ==0)
+      printf("\n %d/%d : ", j+1, num_transfers);
+    /* for(int i=0; i< 20; i++){ */
+    /*   printf("%d ",rx_buf[i]); */
+    /* } */
+    }
+    // End timing
+    gettimeofday(&end_time, NULL);
+    // Compute the throughput of each channel
+    elapsed_time = TVAL_TO_SEC(end_time) - TVAL_TO_SEC(start_time);
+    rx_data_rate = BYTE_TO_MIB(rx_size) * num_transfers / elapsed_time;
+
+    // Report the statistics to the user
+    printf("DMA Timing Statistics:\n");
+    printf("\tElapsed Time: %0.2f s\n", elapsed_time);
+    printf("\tReceive Throughput: %0.2f MiB/s\n", rx_data_rate);
+
+
+
+    // write to file
+    char fileName[256];
+    char fileNo[64];
+    char comment[256];
+
+    /* Form a udp packet */
+    strcpy(fileName, "./");
+    strcat(fileName, "/cam");
+    strcat(fileName, ".png");
+    snprintf(comment, sizeof(comment), " Cam xxx");
+
+    /* pgma_write(fileName, comment, receive_frame.width, receive_frame.height, 255, rx_buf ); */
+    writePNGGray(fileName, comment, receive_frame.width, receive_frame.height, rx_buf );
+
+
     if (rc < 0) {
         goto free_rx_buf;
     }
     printf("Single transfer test successfully completed!\n");
 
-    // Time the DMA eingine
-    printf("Beginning performance analysis of the DMA engine.\n\n");
-    rc = time_dma(axidma_dev, tx_channel, tx_buf, tx_size, tx_frame,
-            rx_channel, rx_buf, rx_size, rx_frame, num_transfers);
+    /* // Time the DMA eingine */
+    /* printf("Beginning performance analysis of the DMA engine.\n\n"); */
+    /* rc = time_dma(axidma_dev, tx_channel, tx_buf, tx_size, tx_frame, */
+    /*         rx_channel, rx_buf, rx_size, rx_frame, num_transfers); */
 
 free_rx_buf:
     axidma_free(axidma_dev, rx_buf, rx_size);
-free_tx_buf:
-    axidma_free(axidma_dev, tx_buf, tx_size);
+    free(frm_buf);
+    /* axidma_free(axidma_dev, my_buf, rx_size); */
+/* free_tx_buf: */
+/*     axidma_free(axidma_dev, tx_buf, tx_size); */
 destroy_axidma:
     axidma_destroy(axidma_dev);
 ret:
